@@ -29,8 +29,8 @@ export default function MapView({ gameId }: Props) {
             const res = await fetch(`/api/map?gameId=${gameId}`);
             if (res.ok) {
                 const data = await res.json();
-                setRooms(data.rooms);
-                setConnections(data.connections);
+                setRooms(data.rooms || []);
+                setConnections(data.connections || []);
             }
         } catch (e) {
             console.error(e);
@@ -45,55 +45,66 @@ export default function MapView({ gameId }: Props) {
         return () => clearInterval(interval);
     }, [gameId]);
 
-    if (loading) return <div className="text-xs text-gray-400">Loading map…</div>;
+    if (loading) {
+        return (
+            <div className="text-xs text-gray-400 animate-pulse">
+                Loading map…
+            </div>
+        );
+    }
+
+    if (rooms.length === 0) {
+        return (
+            <div className="text-xs text-gray-500">
+                No rooms yet.
+            </div>
+        );
+    }
 
     return (
-        <div className="bg-gray-900 p-4 rounded-lg">
-            <h3 className="text-sm font-bold text-cyan-400 mb-2">Map</h3>
-            <div className="relative w-full h-48 bg-black/50 rounded overflow-hidden">
-                <svg className="w-full h-full" viewBox="0 0 300 200">
-                    {/* Connections */}
-                    {connections.map((c, i) => {
-                        const from = rooms.find(r => r.id === c.from);
-                        const to = rooms.find(r => r.id === c.to);
-                        if (!from || !to) return null;
-                        return (
-                            <line
-                                key={i}
-                                x1={from.x}
-                                y1={from.y}
-                                x2={to.x}
-                                y2={to.y}
-                                stroke="#444"
-                                strokeWidth="2"
-                            />
-                        );
-                    })}
+        <div className="w-full h-48 bg-black/50 rounded-lg overflow-hidden">
+            <svg className="w-full h-full" viewBox="0 0 300 200">
+                {/* Connections */}
+                {connections.map((c, i) => {
+                    const from = rooms.find(r => r.id === c.from);
+                    const to = rooms.find(r => r.id === c.to);
+                    if (!from || !to) return null;
+                    return (
+                        <line
+                            key={i}
+                            x1={from.x}
+                            y1={from.y}
+                            x2={to.x}
+                            y2={to.y}
+                            stroke="#666"
+                            strokeWidth="2"
+                        />
+                    );
+                })}
 
-                    {/* Rooms */}
-                    {rooms.map(room => (
-                        <g key={room.id}>
-                            <circle
-                                cx={room.x}
-                                cy={room.y}
-                                r={room.isCurrent ? 12 : 8}
-                                fill={room.isCurrent ? '#10b981' : '#6b7280'}
-                                stroke="#fff"
-                                strokeWidth="2"
-                            />
-                            <text
-                                x={room.x}
-                                y={room.y + 4}
-                                textAnchor="middle"
-                                className="fill-white text-xs font-medium"
-                                style={{ fontSize: '10px' }}
-                            >
-                                {room.name.slice(0, 10)}
-                            </text>
-                        </g>
-                    ))}
-                </svg>
-            </div>
+                {/* Rooms */}
+                {rooms.map(room => (
+                    <g key={room.id}>
+                        <circle
+                            cx={room.x}
+                            cy={room.y}
+                            r={room.isCurrent ? 14 : 10}
+                            fill={room.isCurrent ? '#10b981' : '#6b7280'}
+                            stroke="#fff"
+                            strokeWidth="2"
+                        />
+                        <text
+                            x={room.x}
+                            y={room.y + 4}
+                            textAnchor="middle"
+                            className="fill-white text-xs font-medium"
+                            style={{ fontSize: '10px' }}
+                        >
+                            {room.name.slice(0, 12)}
+                        </text>
+                    </g>
+                ))}
+            </svg>
         </div>
     );
 }
