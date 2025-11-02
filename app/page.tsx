@@ -51,8 +51,11 @@ export default function Home() {
         }
     };
 
+    // app/page.tsx  (replace the existing handleFork function)
+
     const handleFork = async () => {
         if (!gameId) return;
+
         try {
             const res = await fetch('/api/fork', {
                 method: 'POST',
@@ -61,8 +64,18 @@ export default function Home() {
             });
             const data = await res.json();
             if (!res.ok) throw new Error(data.error || 'Fork failed');
-            alert(`Forked in ${data.time}ms! New ID: ${data.newGameId}`);
-            window.location.href = `/?game=${data.newGameId}`;
+
+            const newUrl = `${window.location.origin}/?game=${data.newGameId}`;
+
+            // Open the new universe in a new tab
+            const newWindow = window.open(newUrl, '_blank');
+            if (!newWindow) throw new Error('Popup blocked');
+
+            // Show the success alert **in the new tab**
+            newWindow.onload = () => {
+                newWindow.alert(`Forked in ${data.time}ms! New ID: ${data.newGameId}`);
+            };
+
         } catch (err: any) {
             alert(`Fork failed: ${err.message}`);
         }
