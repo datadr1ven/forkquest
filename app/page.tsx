@@ -1,11 +1,15 @@
 'use client';
 import { useState, useEffect } from 'react';
+import AgentChat from '@/components/AgentChat';
 import GamePlayArea from '@/components/GamePlayArea';
+import HybridSearchBar from '@/components/HybridSearchBar';
 import ShareLink from '@/components/ShareLink';
 
 interface HealthData {
-    status: 'OK' | 'ERROR' | 'INITIALIZING';
-    data?: { games: string; rooms: string };
+    status: 'OK' | 'ERROR';
+    issues: string[];
+    data: { games: string; rooms: string };
+    timestamp: string;
 }
 
 export default function Home() {
@@ -13,9 +17,7 @@ export default function Home() {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [health, setHealth] = useState<HealthData | null>(null);
-    const [joinInput, setJoinInput] = useState('');
 
-    // Health
     useEffect(() => {
         const fetchHealth = async () => {
             try {
@@ -29,23 +31,19 @@ export default function Home() {
         return () => clearInterval(interval);
     }, []);
 
-    // Load from URL
     useEffect(() => {
         const urlId = new URLSearchParams(window.location.search).get('game');
         if (urlId) setGameId(urlId);
     }, []);
 
-    // Generate
     const generateGame = async () => {
         setLoading(true);
         setError(null);
         try {
             const res = await fetch('/api/generate', { method: 'POST' });
-            const text = await res.text();
-            if (!res.ok) throw new Error(text);
-            const { gameId } = JSON.parse(text);
+            if (!res.ok) throw new Error(await res.text());
+            const { gameId } = await res.json();
             setGameId(gameId);
-            window.history.replaceState(null, '', `?game=${gameId}`);
         } catch (e: any) {
             setError(e.message);
         } finally {
@@ -53,125 +51,82 @@ export default function Home() {
         }
     };
 
-    // Join
-    const joinGame = () => {
-        let id = joinInput.trim();
-        try { const url = new URL(id); const p = url.searchParams.get('game'); if (p) id = p; } catch { }
-        if (/^[0-9a-f-]{36}$/.test(id)) {
-            setGameId(id);
-            setJoinInput('');
-            window.history.replaceState(null, '', `?game=${id}`);
-        } else {
-            setError('Invalid ID');
+    const handleFork = async () => {
+        if (!gameId) return;
+        try {
+            const res = await fetch('/api/fork', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ gameId }),
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || 'Fork failed');
+            alert(`Forked in ${data.time}ms! New ID: ${data.newGameId}`);
+            window.location.href = `/?game=${data.newGameId}`;
+        } catch (err: any) {
+            alert(`Fork failed: ${err.message}`);
         }
     };
 
-    // Fork
-    const handleFork = async () => {
-        if (!gameId) return;
-        const res = await fetch('/api/fork', {
-            method: 'POST',
-            body: JSON.stringify({ gameId }),
-            headers: { 'Content-Type': 'application/json' },
-        });
-        if (!res.ok) return setError(await res.text());
-        const { newGameId } = await res.json();
-        setGameId(newGameId);
-        window.history.replaceState(null, '', `?game=${newGameId}`);
-    };
+    if (!gameId) {
+        return (
+            <div className="min-h-screen bg-gradient-to-br from-purple-900 to-blue-900 flex flex-col items-center justify-center p-6">
+                <div className="text-center max-w-2xl">
+                    <h1 className="text-6xl font-bold text-white mb-6">ForkQuest</h1>
+                    <p className="text-xl text-gray-200 mb-8">Zork, but you fork the universe.</p>
 
-    return (
-        <div className="min-h-screen bg-gradient-to-br from-slate-950 via-purple-950 to-slate-950 text-white font-sans">
+                    {health && (
+                        <div className={`mb-6 p-3 rounded-lg text-sm font-mono ${health.status === 'OK' ? 'bg-green-900 text-green-100' : 'bg-red-900 text-red-100'}`}>
+                            <strong>DB:</strong> {health.status}
+                            {health.status === 'OK' ? (
+                                <> | Games: {health.data.games} | Rooms: {health.data.rooms}</>
+                            ) : (
+                                <> | Issues: {health.issues.join(', ')}</>
+                            )}
+                        </div>
+                    )}
 
-            {/* ===== HEADER ===== */}
-            <header className="p-6 text-center">
-                <h1 className="text-5xl font-black bg-clip-text text-transparent bg-gradient-to-r from-cyan-400 to-purple-500">
-                    ForkQuest
-                </h1>
-                <p className="mt-2 text-sm text-gray-400">Zork + TigerData = Forkable Worlds</p>
+                    {error && <div className="mb-4 p-3 bg-red-800 text-red-100 rounded-lg text-sm">{error}</div>}
 
-                {/* Join Bar */}
-                <div className="mt-6 flex justify-center gap-2 max-w-md mx-auto">
-                    <input
-                        value={joinInput}
-                        onChange={e => setJoinInput(e.target.value)}
-                        onKeyDown={e => e.key === 'Enter' && joinGame()}
-                        placeholder="Paste game link…"
-                        className="flex-1 px-4 py-2 bg-white/5 backdrop-blur border border-white/10 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-cyan-400"
-                    />
-                    <button onClick={joinGame} className="px-4 py-2 bg-cyan-600 rounded-lg text-sm font-medium hover:bg-cyan-500 transition">
-                        Join
+                    <button
+                        onClick={generateGame}
+                        disabled={loading}
+                        className="px-8 py-4 bg-green-600 text-white text-lg font-bold rounded-lg hover:bg-green-700 disabled:opacity-50"
+                    >
+                        {loading ? 'Creating...' : 'Start New Adventure'}
                     </button>
                 </div>
-            </header>
+            </div>
+        );
+    }
 
-            {/* ===== NO GAME ===== */}
-            {!gameId && (
-                <main className="flex-1 flex items-center justify-center p-6">
-                    <div className="text-center">
-                        {error && (
-                            <p className="mb-4 text-red-400 text-sm">{error}</p>
-                        )}
-                        <button
-                            onClick={generateGame}
-                            disabled={loading}
-                            className="px-8 py-4 bg-gradient-to-r from-green-500 to-emerald-600 text-white font-bold rounded-xl shadow-lg hover:shadow-xl transform hover:scale-105 transition disabled:opacity-50"
-                        >
-                            {loading ? 'Creating…' : 'Start New Adventure'}
-                        </button>
-                    </div>
-                </main>
+    return (
+        <div className="max-w-7xl mx-auto p-6">
+            {health && (
+                <div className="mb-6 p-3 bg-gray-800 rounded-lg text-sm text-gray-300 font-mono flex justify-between">
+                    <span>
+                        <strong>DB:</strong> {health.status} | Games: {health.data.games} | Rooms: {health.data.rooms}
+                    </span>
+                </div>
             )}
 
-            {/* ===== IN-GAME ===== */}
-            {gameId && (
-                <>
-                    {/* Gameplay */}
-                    <section className="p-6">
-                        <div className="max-w-4xl mx-auto glass-panel p-6 rounded-2xl">
-                            <GamePlayArea gameId={gameId} />
-                        </div>
-                    </section>
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <div className="lg:col-span-2 space-y-6">
+                    <GamePlayArea gameId={gameId} />
+                    <HybridSearchBar gameId={gameId} />
+                </div>
 
-                    {/* Controls */}
-                    <section className="px-6 pb-6">
-                        <div className="max-w-4xl mx-auto flex flex-wrap gap-3 justify-center">
-                            <button
-                                onClick={handleFork}
-                                className="px-6 py-3 bg-gradient-to-r from-yellow-500 to-amber-600 text-white font-bold rounded-xl shadow hover:shadow-lg transform hover:scale-105 transition"
-                            >
-                                Fork Universe
-                            </button>
-                            <div className="px-6 py-3 bg-white/5 backdrop-blur border border-white/10 rounded-xl">
-                                <ShareLink gameId={gameId} />
-                            </div>
-                            <a
-                                href={`https://console.tigerdata.com/services/${gameId}`}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-bold rounded-xl shadow hover:shadow-lg transform hover:scale-105 transition"
-                            >
-                                Tiger Console
-                            </a>
-                        </div>
-                    </section>
-
-                    {/* Debug Bar */}
-                    <footer className="px-6 pb-8">
-                        <div className="max-w-4xl mx-auto flex items-center justify-between text-xs font-mono">
-                            <div className={`px-3 py-1 rounded-full ${health?.status === 'OK' ? 'bg-green-900/50 text-green-300' :
-                                    health?.status === 'INITIALIZING' ? 'bg-yellow-900/50 text-yellow-300' :
-                                        'bg-red-900/50 text-red-300'
-                                }`}>
-                                DB: {health?.status === 'OK' ? `OK • ${health.data?.games}G • ${health.data?.rooms}R` : health?.status}
-                            </div>
-                            <div className="text-gray-500">
-                                Game ID: <span className="font-mono">{gameId.slice(0, 8)}</span>
-                            </div>
-                        </div>
-                    </footer>
-                </>
-            )}
+                <div className="space-y-4">
+                    <AgentChat gameId={gameId} />
+                    <button
+                        onClick={handleFork}
+                        className="w-full p-4 bg-yellow-600 text-white font-bold rounded-lg hover:bg-yellow-700"
+                    >
+                        Fork Universe
+                    </button>
+                    <ShareLink gameId={gameId} />
+                </div>
+            </div>
         </div>
     );
 }

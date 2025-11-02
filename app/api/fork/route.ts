@@ -1,20 +1,12 @@
-// app/api/fork/route.ts
 import { NextResponse } from 'next/server';
 import { query } from '@/lib/db';
+import { ensureSchema } from '@/lib/schema';
 
 export async function POST(req: Request) {
+    await ensureSchema();
     const { gameId } = await req.json();
     const start = Date.now();
-
-    try {
-        const res = await query(`SELECT tiger_create_fork($1) AS new_id`, [gameId]);
-        const newGameId = res.rows[0].new_id;
-        const timeMs = Date.now() - start;
-
-        await query(`UPDATE games SET fork_count = fork_count + 1 WHERE id = $1`, [gameId]);
-
-        return NextResponse.json({ newGameId, timeMs });
-    } catch (error: any) {
-        return NextResponse.json({ error: error.message }, { status: 500 });
-    }
+    const res = await query(`SELECT tiger_create_fork($1) AS new_game_id`, [gameId]);
+    const time = Date.now() - start;
+    return NextResponse.json({ newGameId: res.rows[0].new_game_id, time });
 }

@@ -2,8 +2,6 @@
 @tailwind components;
 @tailwind utilities;
 
-@layer components {
-    .glass-panel {
-        @apply bg-white/5 backdrop-blur-lg border border-white/10 rounded-2xl shadow-xl;
-    }
+html {
+    scroll-behavior: smooth;
 }

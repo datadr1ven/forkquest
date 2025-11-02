@@ -1,69 +1,55 @@
 'use client';
 import { useState } from 'react';
 
-interface Props {
-    gameId: string;
-}
-
-export default function GamePlayArea({ gameId }: Props) {
-    const [output, setOutput] = useState<string>(
-        'You wake in a misty forest. Paths lead north to a cave, east to a river.'
-    );
+export default function GamePlayArea({ gameId }: { gameId: string }) {
     const [input, setInput] = useState('');
-    const [loading, setLoading] = useState(false);
+    const [output, setOutput] = useState<string[]>(['> Welcome to ForkQuest.']);
 
-    const handleCommand = async () => {
-        if (!input.trim() || loading) return;
-
-        const command = input.trim();
-        setInput('');
-        setLoading(true);
-
-        // Append command
-        setOutput(prev => `${prev}\n\n> ${command}`);
-
+    // components/GamePlayArea.tsx
+    const send = async (cmd: string) => {
+        setOutput(p => [...p, `> ${cmd}`, 'Thinking...']);
         try {
-            const res = await fetch('/api/mcp-run', {
+            const res = await fetch('/api/player', {  // ← CHANGED
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ prompt: command, gameId }),
+                body: JSON.stringify({ prompt: cmd, gameId }),
             });
-
-            if (!res.ok) throw new Error(await res.text());
-
             const { response } = await res.json();
-            setOutput(prev => `${prev}\n\n${response}`);
-        } catch (e: any) {
-            setOutput(prev => `${prev}\n\n[Error: ${e.message}]`);
-        } finally {
-            setLoading(false);
+            setOutput(p => {
+                const n = [...p];
+                n[n.length - 1] = response;
+                return n;
+            });
+        } catch {
+            setOutput(p => {
+                const n = [...p];
+                n[n.length - 1] = 'Agent error.';
+                return n;
+            });
+        }
+    };
+    const handleSubmit = (e: React.FormEvent) => {
+        e.preventDefault();
+        if (input.trim()) {
+            send(input.trim());
+            setInput('');
         }
     };
 
     return (
-        <div className="bg-black text-green-400 p-6 rounded-lg font-mono text-sm h-96 overflow-y-auto flex flex-col">
-            <div className="flex-1 overflow-y-auto mb-4 whitespace-pre-wrap">
-                {output}
-                {loading && <span className="animate-pulse"> █</span>}
-            </div>
-            <div className="flex gap-2">
+        <div className="bg-black p-4 rounded h-96 overflow-y-auto mb-4 font-mono text-sm">
+            {output.map((line, i) => (
+                <div key={i} className="text-green-400">{line}</div>
+            ))}
+            <form onSubmit={handleSubmit} className="flex gap-2 mt-2">
                 <input
                     value={input}
                     onChange={e => setInput(e.target.value)}
-                    onKeyDown={e => e.key === 'Enter' && handleCommand()}
-                    disabled={loading}
-                    placeholder="> go north"
-                    className="flex-1 bg-transparent text-green-400 border-b border-green-400 outline-none placeholder-green-600"
-                    autoFocus
+                    className="flex-1 bg-gray-800 text-green-400 px-4 py-2 rounded"
+                    placeholder="go north, take sword..."
                 />
-                <button
-                    onClick={handleCommand}
-                    disabled={loading}
-                    className="px-3 text-green-400 hover:text-green-300 disabled:opacity-50"
-                >
-                    Enter
-                </button>
-            </div>
+                <button type="submit" className="px-4 py-2 bg-green-600 rounded">Send</button>
+            </form>
         </div>
     );
 }
